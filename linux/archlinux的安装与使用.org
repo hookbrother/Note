@@ -1,0 +1,334 @@
+#+Title: archlinux的安装与使用
+#+Author: hookbrother <hookbrother@gmail.com>
+#+Date: 2013/10/26 20:23:19
+#+Updated: 2013/12/15 18:46:58
+#+Categories: [随笔分类]linux
+#+Description: arch的安装以及新系统的一些常用配置和常用软件
+* 写这篇文章的目的
+其实对于学习和使用archlinux，wiki上的资料已经非常全面了。可以说，在使用archlinux中遇到问题首先使用的方法，应该就是在google的搜索栏里输入"archwiki 问题"。
+
+写这篇文章，一方面是对自己安装和使用arch的过程做一个总结；另一方面，记录一下自己对这个过程的一些理解，如果能给他人带来一定的帮助，那无疑更让我欣慰了。
+* archlinux的安装
+其实对于任何一个系统，安装过程都大同小异。假设你已经安装过其他的操作系统了，比如windows，那你应该还记得大致的过程：
+1. 插入系统盘
+2. 分区
+3. 将系统安装到某个分区
+4. 进行一些初始化的配置（这一步在windows中可能采用的是下一步的方法，比如让你输入用户名什么的）
+** 下载系统镜像
+http://mirrors.163.com/archlinux/iso/latest/
+** 制作启动盘
+这里只介绍U盘启动，因为我的光驱没有刻录功能^_^。
+
+这里之介绍linux下制作U盘启动盘，因为我原先用ubuntu^_^。
+
+首先使用lsblk命令确定你的U盘没有被挂载，如果被挂载了，umount。确定没有被挂在之后：
+#+BEGIN_SRC sh
+dd bs=4M if=archlinux-2013.10.01-dual.iso of=/dev/sdx && sync
+#+END_SRC
+需要注意的是使用/dev/sdx而不是/dev/sdx1。
+** 分区
+当你插入U盘，然后选择安装，屏幕闪了一堆命令进入到一个root用户的bash。这个时候，实际上你在U盘的操作系统内，也就是说，你的U盘启动包含了一个arch操作系统，而你就在这个系统上操作一些命令来将arch系统安装到你的硬盘上。
+*** 使用cfdisk命令分区
+按需求使用cfdisk分区，我用的是1T的硬盘，分成4个区：
+| /dev/ | mount | size |
+|-------+-------+------|
+| sda1  | /     | 100G |
+| sda2  | /var  | 80G  |
+| sda3  | swap  | 8G   |
+| sda4  | /home | 800G |
+*** 创建文件系统
+也就是相当于安装windows系统中的格式化过程：
+#+BEGIN_SRC sh
+mkfs.ext4 /dev/sda1
+mkfs.reiserfs /dev/sda2
+mkfs.ext4 /dev/sda4
+mkswap /dev/sda3
+swapon /dev/sda3
+#+END_SRC
+*** 挂载
+由于linux本身设计的原因，linux系统下是无法直接访问硬盘的，所以通常先把设备挂载到某个文件夹，然后通过访问文件夹来访问设备。
+#+BEGIN_SRC sh
+mount /dev/sda1 /mnt
+mkdir /mnt/var
+mount /dev/sda2 /mnt/var
+mkdir /mnt/home
+mount /dev/sda4 /mnt/home
+#+END_SRC
+** 安装系统
+到了这一步，应该说已经把碗准备好了，就等着让arch到碗里来了。在此之前，最好先用lsblk命令确定一下你刚才的分区是否正确，同时，确保你的网络是畅通的（dhcpcd），因为之后你安装的整个arch都是从网上下载下来的。
+*** 选择镜像
+如果你可以忍受50K以下的速度，这一步可以省略，如果无法忍受，修改/etc/pacman.d/mirrorlist文件
+#+BEGIN_SRC sh
+nano /etc/pacman.d/mirrorlist
+#+END_SRC
+在文件开始的地方（除去以#开头的注释）加入一行你所选择的镜像。比如：
+: Server = http://mirrors.163.com/……
+后面省略号内容参考文件中其他镜像地址。修改完之后"C-o C-x"。
+*** 安装
+主要包括[[https://www.archlinux.org/groups/x86_64/base/][base(基本系统)]] [[https://www.archlinux.org/groups/x86_64/base-devel/][base-devel(附加工具)]]
+#+BEGIN_SRC sh
+pacstrap /mnt base base-devel
+#+END_SRC
+或者你可以根据自己的需求安装所需要的包。
+*** 生成fstab
+文件系统表，该表列出了所有可用的磁盘和分区信息。当系统启动的时候会自动mount这个文件中的内容以便使用硬盘。
+#+BEGIN_SRC sh
+genfstab -U -p /mnt >> /mnt/etc/fstab
+#+END_SRC
+*** Chroot到新系统
+#+BEGIN_SRC sh
+arch-chroot /mnt
+#+END_SRC
+这一步之后，进入硬盘上的系统，当然，目前位置你还没有脱离你的根，即U盘上的系统。
+*** 安装启动器
+系统盘或者叫启动盘和普通的盘有什么区别？启动盘可以不依赖操作系统直接被电脑识别，即可以启动。关键就在于启动盘上有启动器，硬盘上的操作系统能被电脑直接识别，就必须要安装启动器。
+#+BEGIN_SRC sh
+pacman -S gptfdisk
+pacman -S syslinux
+syslinux-install_update -iam
+nano /boot/syslinux/syslinux.cfg
+#+END_SRC
+修改LABEL arch和LABEL archfallback下的root的值，让其等于跟分区，本文中即"/dev/sda1"
+*** 退出、重启
+#+BEGIN_SRC sh
+exit
+umount -R /mnt
+reboot
+#+END_SRC
+从现在开始，U盘已经完成了他的使命。
+* 基本配置
+在配置之前，确保网络畅通，如果没有连接，使用"dhcpcd"命令。
+** 主机名字
+#+BEGIN_SRC sh
+echo myhostname > /etc/hostname
+#+END_SRC
+** 设置root密码
+#+BEGIN_SRC sh
+passwd
+#+END_SRC
+** 用户管理
+*** 建立账户
+#+BEGIN_SRC sh
+useradd -m -g users -s /bin/bash archie
+#+END_SRC
+*** 修改wheel权限
+#+BEGIN_SRC sh
+visudo
+#+END_SRC
+将wheel前面的注释符号去除。
+
+没有用过vi的朋友，修改后用“Esc : w q ! 回车”，表示保存修改并退出。
+*** 将建立的用户加入相应用户组
+查看用户组:
+#+BEGIN_SRC sh
+cat /etc/group
+#+END_SRC
+加入用户组:
+#+BEGIN_SRC sh
+gpasswd -a archie wheel
+#+END_SRC
+*** 设置密码
+#+BEGIN_SRC sh
+passwd archie
+#+END_SRC
+** 安装xorg
+如果不想一直在黑窗口下使用的话。。。
+*** 如果使用开源驱动或者在虚拟机下安装的
+#+BEGIN_SRC sh
+pacman -S xorg-server xorg-xinit xorg-utils xorg-server-utils
+#+END_SRC
+*** 如果使用私有驱动的(因为我的是ati显卡，所以只介绍catalyst，并且如果显卡太老的话，可能要调整xorg版本)
+如果是实体机安装arch，还是强烈建议使用闭源驱动，不要怕麻烦，不要看wiki上说开源怎么怎么样，反正我使用中开源碰到了好多问题，比如emacs下如果用了一些颜色主题，再用flymake或者flycheck就会让你卡个几百年的，bochs源码安装(因为要用到调试功能)之后一用就卡死。
+**** 编辑/etc/pacman.conf，在其他仓库之前添加相应软件库。
+#+BEGIN_SRC sh
+nano /etc/pacman.conf
+#+END_SRC
+在其他仓库前添加如下内容：
+#+BEGIN_EXAMPLE
+[xorg113]
+Server = http://catalyst.wirephire.com/repo/xorg113/$arch
+[catalyst]
+Server = http://catalyst.wirephire.com/repo/catalyst/$arch
+#+END_EXAMPLE
+**** 添加Vi0L0的GPGkey，使pacman信任这个软件仓库。
+#+BEGIN_SRC sh
+pacman-key --keyserver pgp.mit.edu --recv-keys 0xabed422d653c3094
+pacman-key --lsign-key 0xabed422d653c3094
+#+END_SRC
+**** 安装xorg(这一步默认会把catalyst-utils安上)
+#+BEGIN_SRC sh
+pacman -Syy
+pacman -S xorg-server xorg-xinit xorg-utils xorg-server-utils
+#+END_SRC
+** 安装驱动
+因为我的是ati显卡，因此只介绍a卡和虚拟机下的安装
+*** wmware
+#+BEGIN_SRC sh
+pacman -S xf86-video-vmware
+#+END_SRC
+*** virtual box
+#+BEGIN_SRC sh
+pacman -S virtualbox-guest-utils
+modprobe -a vboxguest vboxsf
+#+END_SRC
+编辑/etc/modules-load.d/virtualbox.conf：
+#+BEGIN_SRC sh
+nano /etc/modules-load.d/virtualbox.conf
+#+END_SRC
+添加如下内容：
+#+BEGIN_EXAMPLE
+vboxguest
+vboxsf
+#+END_EXAMPLE
+*** 开源
+#+BEGIN_SRC sh
+pacman -S xf86-video-ati
+#+END_SRC
+*** 闭源
+**** 安装catalyst-hook并激活
+其实这里还有其他两个选择，catalyst， catalyst-generator，我本人还是选择了catalyst-hook，因为他可以自己根据需要自动构建或者重构fglrx。
+
+要注意的是，如果之前没有安装base-devel，这里要安装。
+#+BEGIN_SRC sh
+pacman -S linux-headers
+pacman -S catalyst-hook
+systemctl enable catalyst-hook
+systemctl start catalyst-hook
+#+END_SRC
+**** 修改/boot/syslinux/syslinux.cfg禁用kernel mode setting(KMS)：
+#+BEGIN_SRC sh
+nano /boot/syslinux/syslinux.cfg
+#+END_SRC
+#+BEGIN_EXAMPLE
+LABEL arch
+    MENU LABEL Arch Linux
+    LINUX ../vmlinuz-linux
+    APPEND root=/dev/sda1 ro nomodeset
+#+END_EXAMPLE
+**** 重新安装xorg-serve，配置X
+#+BEGIN_SRC sh
+pacman -S xorg-server
+aticonfig --initial
+aticonfig --initial
+#+END_SRC
+要注意的是"aticonfig --initial"使用两遍，用来生成两个不同的文件的。
+** 桌面(gnome，kde，xfce4这里就介绍gnome了，其他两个差不多)
+#+BEGIN_SRC sh
+pacman -S gnome gnome-tweak-tool
+systemctl enable gdm.service
+#+END_SRC
+gnome-tweak-tool是一个非常好的优化工具。
+** 网络
+这里我没有使用dhcpcd，因为个人感觉功能上来说NetworkManager要强大一些，因为我要用到vpn，用NetworkManager来配置相对简单很多。如果用了dhcpcd会与NetworkManager冲突。
+#+BEGIN_SRC sh
+systemctl enable NetworkManager.service
+#+END_SRC
+** 中文设置
+*** 基本设置
+#+BEGIN_SRC sh
+nano /etc/locale.gen
+#+END_SRC
+选定你需要的本地化类型(移除前面的＃)。比如：
+#+BEGIN_EXAMPLE
+en_US.UTF-8 UTF-8
+zh_CN.GB18030 GB18030
+zh_CN.GBK GBK
+zh_CN.UTF-8 UTF-8
+zh_CN GB2312
+#+END_EXAMPLE
+运行：
+#+BEGIN_SRC sh
+locale-gen
+#+END_SRC
+要注意的是，在wiki上还修改了一些其他的文件，我的意见是只修改这个，因为修改了其他文件之后可能会导致中文化不彻底，比如说终端出现乱码之类的。
+*** 安装字体和输入法
+#+BEGIN_SRC sh
+pacman -S wqy-microhei
+pacman -S ibus ibus-sunpinyin
+reboot
+#+END_SRC
+OK，开始你的arch之旅。
+* 常用配置
+** 语言
+在桌面上，右键setting，选择地区语言，选择中文，输入法中中文选择ibus-sunpinyin，英文选择美国，并在键盘设置的快捷键中修改成你所习惯的切换方式，需要注意的是，输入法列表的上下顺序决定了你默认的输入法，可以根据自己的需要设定。
+** 按键
+如果你经常使用Ctrl键的话(比如emacser)，在显示全部应用程序的工具中找到优化工具，即gnome-tweak-tool，在打字选项卡中设置Ctrl键位置。我选择的是交换大写锁定。你还可以在优化工具中修改其他方面的设置以便是你的系统更加好看。
+** 不用输入密码使用sudo
+#+BEGIN_SRC sh
+sudo nano /etc/sudoers.d/username
+#+END_SRC
+在文件添加一下内容：
+#+BEGIN_EXAMPLE
+User_Alias      NORMAL = archie
+NORMAL  ALL = NOPASSWD: ALL
+#+END_EXAMPLE
+修改权限：
+#+BEGIN_SRC sh
+sudo chmod 0440 /etc/sudoers.d/username
+#+END_SRC
+** vpn
+个人认为在天朝上网，特别是程序员的话，使用vpn还是少不了的。免费的不稳定，所以我还是狠狠心在淘宝上买了个，其实花不了多少钱。我使用的是pptp。
+#+BEGIN_SRC sh
+sudo pacman -S networkmanager-openvpn
+sudo pacman -S networkmanager-pptp
+#+END_SRC
+然后在设置里网络中添加就可以了（这里就体现出使用NetworkManager的优势了，用dhcpcd的话会复杂很多）。
+** 修改/etc/hosts以便更顺畅地使用google
+#+BEGIN_SRC sh
+sudo pacman -S wget
+wget https://smarthosts.googlecode.com/svn/trunk/hosts
+sudo mv hosts /etc/hosts
+#+END_SRC
+* Yaourt
+Yaourt(Yet AnOther User Repository Tool)，作用类似与pacman，但是添加了AUR的支持。Yaourt可用于查找软件包(包括[core] [extra] [community] AUR的软件包，pacman只能查找非AUR的软件包)。
+** 安装
+添加Yaourt源至/etc/pacman.conf:
+#+BEGIN_SRC sh
+[archlinuxcn]
+#The Chinese Arch Linux communities packages.
+SigLevel = Optional TrustAll
+Server   = http://repo.archlinuxcn.org/$arch
+#+END_SRC
+同步并安装：
+#+BEGIN_SRC sh
+pacman -Sy yaourt
+#+END_SRC
+** 使用
+一般来说，就把他当成pacman来用吧。
+* 常用软件安装
+** firefox
+#+BEGIN_SRC sh
+sudo pacman -S firefox-i18n-zh-cn
+sudo pacman -S flashplugin
+#+END_SRC
+** audacious
+听音乐，用audacious。
+#+BEGIN_SRC sh
+sudo pacman -S audacious
+#+END_SRC
+** stardict
+linux下比较好的翻译软件，比较不方便的是没有内置的字典。
+#+BEGIN_SRC sh
+sudo pacman -S stardict
+#+END_SRC
+下载字典地址(推荐朗道)：
+
+http://abloz.com/huzheng/stardict-dic/zh_CN/
+
+加载字典：
+#+BEGIN_SRC sh
+tar -xjvf stardict-langdao-ec-gb-2.4.2.tar.bz2
+sudo mv stardict-langdao-ec-gb-2.4.2 /usr/share/stardict/dic
+tar -xjvf stardict-langdao-ce-gb-2.4.2.tar.bz2
+sudo mv stardict-langdao-ce-gb-2.4.2 /usr/share/stardict/dic
+#+END_SRC
+** git
+一个非常好的版本管理工具。关于它的安装和使用，打个广告：
+
+http://www.cnblogs.com/hookbrother/p/3398279.html
+** emacs
+一个非常好的编辑器。如果之前不知道的话可以试试。
+#+BEGIN_SRC sh
+sudo pacman -S emacs
+#+END_SRC
+关于emacs的使用，这个很复杂，我也才用不久，之后可能会写篇文章。

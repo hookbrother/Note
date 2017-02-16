@@ -1,0 +1,19 @@
+#+Title: bochs安装
+#+Author: hookbrother <hookbrother@gmail.com>
+#+Date: 2013-09-02 15:16:07
+#+Updated: 2013/10/31 20:21:35
+#+Categories: [随笔分类]
+#+Description: bochs-2.6.2的源码安装
+* 解压
+#+begin_src  sh :eval no-export
+tar vxzf bochs-2.6.tar.gz
+cd bochs-2.6
+./configure --enable-debugger --enable-disasm
+#+end_src
+* 修改Makefile
+找到LDFLAGS，在后面添加-lpthread。
+* 安装
+#+begin_src  sh :eval no-export
+make
+sudo make install
+#+end_src

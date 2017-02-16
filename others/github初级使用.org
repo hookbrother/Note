@@ -1,0 +1,148 @@
+#+Title: github初级使用
+#+Author: hookbrother <hookbrother@gmail.com>
+#+Date: 2013-09-13 16:00:59
+#+Updated: 2013/10/30 23:55:35
+#+Categories: [随笔分类]others
+#+Description: github的入门使用
+* git原理的简单介绍
+简单来说，git是一个管理源代码的工具。管理源代码有很多方法，比如说拷贝到移动硬盘，比说使用ftp。但就管理源代码而言，git无疑更加专业而且强大。
+** 粗糙地描述git系统的结构
+因为本文主要讲github的使用，所以把github的内容也强塞进来
+1. 本地数据目录
+2. 暂存区
+3. 工作目录
+4. 仓库（github）
+** 对应的4种状态
+1. 已修改（modified）
+2. 已暂存（staged）
+3. 已提交（committed）
+4. 已同步（Synchronized）
+* 准备工作
+** 注册
+https://github.com
+** 安装
+#+begin_src sh :eval no-export
+sudo apt-get install git
+#+end_src
+** 配置基本信息
+#+begin_src sh :eval no-export
+git config --global user.email "hookbrother@gmail.com"
+git config --global user.name "hookbrother"
+#+end_src
+* 最简单的使用
+** 创建git的本地工作目录
+本地的目录有很多，但大多和git没有半毛钱关系，只有初始化的工作目录才是git的。
+#+begin_src sh :eval no-export
+mkdir ~/git-test
+cd ~/git-test
+git init
+#+end_src
+这个时候如果
+#+begin_src sh :eval no-export
+ls -a
+#+end_src
+可以看到git-test目录下多了一个.git目录。这个目录的具体内容之后在讲，现在只需要知道这个目录下存储了一些和git-test这个本地工作目录有关的信息。
+** 下载并使用他人的仓库
+#+begin_src sh :eval no-export
+git clone https://github.com/hookbrother/test.git
+#+end_src
+这个命令会在把url所指的仓库下载到当前目录下，并且自动初始化成工作目录
+** 创建远程工作目录（仓库）
+用之前注册的帐号登陆github，在主页的右上角用户名的右边，点击创建仓库。创建完之后,为了方便，可以为仓库取一个别名，而不用每次同步的时候要输入完整的url。
+#+begin_src sh :eval no-export
+git remote add git-test https://github.com/hookbrother/test-gt.git
+#+end_src
+之后就可以用git-test来代替远程仓库的url。
+** 上传
+#+begin_src sh :eval no-export
+touch README.md
+git add README.md
+git commit -m "commit test"
+git push git-test master
+#+end_src
+大致的过程如下：
+1. 创建并编辑文件，此时文件状态为已修改（modified）。
+2. 添加文件到暂存区，此时文件状态为已暂存（staged）。
+3. 提交，并附加提交理由。此时文件状态为已提交（committed）。
+4. 同步，同步过程中按提示输入用户名和密码，将local committed同步到仓库，此时文件状态为已同步（Synchronized）。
+* 稍微高级一点的使用
+** 更普遍一点的同步过程
+上面仅仅是创建了一个文件，然后同步到仓库，我们在使用中显然会碰到更多的情况。
+*** 删除文件
+由于某种情况，不再需要某个文件了，比如README.md
+#+begin_src sh :eval no-export
+rm README.md
+git rm README.md
+#+end_src
+*** 大量的修改
+实际上对于一个工程的更新往往会有大量的修改，比如说添加了一些功能或者合并了一些功能，这往往会增加或者删除掉许多文件，对每个文件都git add/rm显然浪费时间。
+#+begin_src sh :eval no-export
+git add .
+git rm -r .
+git commit -m "reason"
+#+end_src
+事实上，可以这样
+#+begin_src sh :eval no-export
+git add .
+git commit -a -m "reason"
+#+end_src
+*** .gitignored
+如果有一些文件你并不相同步到仓库，那么在你的顶层工作目下新建一个.gitignored的文件，然后在文件里添加类似以下内容(网上抄的，其实好多内容都是)：
+#+begin_src sh :eval no-export
+# 以'#' 开始的行，被视为注释.
+# 忽略掉所有文件名是 foo.txt 的文件.
+foo.txt
+# 忽略所有生成的 html 文件,
+*.html
+# foo.html是手工维护的，所以例外.
+!foo.html
+#  忽略所有.o 和 .a文件.
+*.[oa]
+#+end_src
+*** .git的简单解释
+1. 试验一下，切换到一个没有.git目录的的目录，使用一些git命令，当然git init和git clone之类的除外，他会提示什么？“fatal: This operation must be run in a work tree“，本操作必须运行在一个工作目录下，什么是一个工作目录，就是有.git目录的目录。
+2. git的配置信息有两种，全局的和局部的，全局的就是user name这类的，局部的就是在.git目录下面的。可以看下.git目录下的config文件里面就有一些，比如remote，比如branch，branch之后会解释。remote就是一个别名对应一个远程仓库的url，只有有了全局和局部的配置信息，你才可以使用git push这类常用功能。
+3. 每个工作目录都是独立的，他和其他工作目录共同使用全局配置，此外他有自己的remote，自己的branch。
+** 使用ssh-key
+或许你已经对于每次同步都需要输入用户名和密码忍无可忍了，ssh-key可以帮你免除烦恼。
+*** 生成密钥对：
+#+begin_src sh :eval no-export
+ssh-keygen -t rsa -C "hookbrother@gmail.com"
+#+end_src
+按默认配置，一路回车。完成后会在~/ssh目录下生成两个文件id_rsa，id_rsa.pub。
+*** 添加 ssh key
+登陆到github主页，点击新建仓库旁边的图标，然后在左侧点击SSH Keys，点击Add SSH key，
+*** 使用ssh协议同步
+在仓库页面的右下角，Download ZIP的上面，可以通过选择不同的协议来查看当前协议下的仓库地址，这里选择SSH，复制到剪贴板，然后：
+#+begin_src sh :eval no-export
+git remote add ssh-test git@github.com:hookbrother/test-gt.git
+#+end_src
+** 分支
+对于每一个工作目录，默认会有一个master的分支，通常称之为主分支。
+***  查看分支
+#+begin_src sh :eval no-export
+git branch
+#+end_src
+如果你新建一个目录，然后初始化成一个工作目录，再查看分支，你会发现没有分支。因为分支本身是由一个个的提交点组成，如果没有提交点，就没有分支。
+*** 创建分支
+#+begin_src sh :eval no-export
+git branch test
+#+end_src
+创建完成后查看下分支状态可以看到多了一个test分支，但是master分支前面有个*，说明当前分支是master。
+*** 切换分支 sh :eval no-export
+#+begin_src sh :eval no-export
+git checkout test
+#+end_src
+*** 在test分支上工作
+修改一个文件，然后创建一个文件，完成后git add，git commit。然后回到master分支，会发现增加的文件不见了，并且打开修改过的文件会发现文件没有被修改。切回test分支，又可以看到新建的文件。
+*** 分支的作用
+就像上面看到的，分支的作用在于你可以新建一个分支，在自己的分支上处理一些事情而不影响到主分支，你也可以上传你的分支，然后让你的小伙伴们同步你的分支和你一起工作。
+*** 分支的合并
+当你在分支的工作完成，如果觉得这个工作没有意义，用'git branch -d'命令删除此分枝，如果觉得这个工作有意义，将他合并到主分支。合并要先切换到要合并到的分支下（通常是主分支），然后。。。合并。
+#+begin_src sh :eval no-export
+git checkout master
+git merge test
+#+end_src
+本质上来说，git push/pull也是一种分支的合并。
+*** 合并冲突
+通常合并会遇到冲突的情况，打开冲突的文件<<<<<<< HEAD和>>>>>>>之间的内容就是冲突的内容，修改完成后，重新添加提交。
